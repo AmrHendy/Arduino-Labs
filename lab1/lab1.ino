@@ -15,7 +15,7 @@ long acc_arr[3][window_size] = {{0}};
 long counter;
 int counter_big_array;
 
-int lcd_delay = 600;
+int lcd_delay = 500;
 //calibration to remove the error value at first 
 long x_, y_, z_;
 bool first_time = true;
@@ -40,6 +40,10 @@ float last_distance = 0;
 
 float last_v = 0;
 float average_acc = 0;
+
+
+float total_calories = 0;
+
 
 void setup() {
   Wire.begin();
@@ -102,7 +106,7 @@ void loop() {
     counter = 0;
   }
 
-  if(millis() % 1000 == 0){
+  if(millis() % 100 == 0){
      float temp1 = millis();
      float temp2 = getDistance();
      vel = (temp2 - last_distance) / ((temp1 - last_time) / 1000.0);
@@ -148,7 +152,7 @@ void calc_values() {
     } 
     int samples = check_threshold(dir, threshold); 
 
-    if(samples >= 1 && best_diff > 1800){
+    if(samples >= 1 && best_diff > 2000){
       steps++;
     }  
   }
@@ -225,16 +229,16 @@ void readGyro() {
 }
 
 int index = 0;
-void printOnLcd(){
-  lcd.clear();  
-  
+void printOnLcd()
+{
+  lcd.clear();
+    
   lcd.setCursor(0,0);
   lcd.print("Step=");
   lcd.print(max(steps, 0));
-  
+   
   lcd.print(",D=");
   lcd.print(getDistance());
-  
   
   lcd.setCursor(0,1);
   lcd.print("V=");
@@ -243,6 +247,9 @@ void printOnLcd(){
   
   lcd.print(",C=");
   lcd.print(getCalories());
+
+  //delay(100);
+
 }
 
 
@@ -266,6 +273,7 @@ float getVelocity(){
 
 //calaroies by (C/kg/h)
 float getCalories(){
-  return 4.5 * getVelocity();
+  total_calories = 4.5 * getVelocity();
+  return total_calories;
 }
 
