@@ -2,27 +2,28 @@
 #include <LiquidCrystal.h>
 
 #define window_size 20
-#define check_after_samples 50
+#define check_after_samples 80
 
 // the address of MPU6050 which is known by I2C to make connection
 // we have two options 0b1101000 (common used) if we make AD0 = 0 or 0b1101001 if we make AD0 = 1
 const int MPU_addr = 0x68;  // I2C address of the MPU-6050
 
+//reading values.
 long AcX, AcY, AcZ, Tmp, GyX, GyY, GyZ;
 
+// arrays to store values for acceleration and the smoothed values.
 long total_XYZ[3][check_after_samples] = {0};
 long acc_arr[3][window_size] = {{0}};
 long counter;
 int counter_big_array;
 
-int lcd_delay = 500;
 //calibration to remove the error value at first 
 long x_, y_, z_;
 bool first_time = true;
 
+
 // counter for steps
 long steps = 0;
-
 
 // initialize the library by providing the nuber of pins to it
 LiquidCrystal lcd(8,9,4,5,6,7);
@@ -32,17 +33,20 @@ unsigned long startTime;
 
 bool flag = false;
 
+// centimeters per step.
+int cm_per_step = 40;
 
+// variables to calculate the velocity values.
 float vel = 0;
 float last_time = 0;
 float last_distance = 0;
 
-
-float last_v = 0;
-float average_acc = 0;
-
-
+// variables to calculate the total calories from start, weight in kg, height in meter.
 float total_calories = 0;
+float weight = 74;
+float height = 1.6;
+float time_interval = 0.001;
+int last_steps = 0;
 
 
 void setup() {
@@ -54,7 +58,6 @@ void setup() {
 
   //initialize the lcd
   lcd.begin(16,2);
-  lcd.clear();
 
   startTime = millis();
 
@@ -80,9 +83,7 @@ void loop() {
   Wire.endTransmission(false);
   Wire.requestFrom(MPU_addr, 14, true); // request a total of 14 registers
 
-  readAcceleration();
-  readTempreture();
-  readGyro();
+  read_values();
 
   if(first_time){
     x_ = AcX;
@@ -109,20 +110,13 @@ void loop() {
   if(millis() % 100 == 0){
      float temp1 = millis();
      float temp2 = getDistance();
-     vel = (temp2 - last_distance) / ((temp1 - last_time) / 1000.0);
+     time_interval = ((temp1 - last_time) / 1000.0);
+     vel = (temp2 - last_distance) / time_interval;
      last_distance = temp2;
      last_time = temp1;
   }
-  
+
   printOnLcd();
-
-/*
-  Serial.print("Distance = "); Serial.println(getDistance());
-  Serial.print("Velo = "); Serial.println(getVelocity());
-  Serial.print("Calroies = "); Serial.println(getCalories());
-  delay(500);
-*/
-
 }
 
 
@@ -147,12 +141,11 @@ void calc_values() {
         dir = i;
         best_diff = max_val - min_val;
         threshold = best_diff / 2 + min_val;
-        average_acc = threshold / 10;
       }
     } 
     int samples = check_threshold(dir, threshold); 
 
-    if(samples >= 1 && best_diff > 2000){
+    if(samples >= 1 && best_diff > 1800){
       steps++;
     }  
   }
@@ -193,10 +186,14 @@ int check_threshold(int dir, long threshold){
 }
 
 
+void read_values(){
+  readAcceleration();
+  readTempreture();
+  readGyro();
+}
+
 void readAcceleration() {
-
   while (Wire.available() < 6);
-
   // read the acceleration values , note that the value is divided into two adjacent register
   // each one has the first half bits so we should concatenate them by shifting and oring
   AcX = Wire.read() << 8 | Wire.read(); // 0x3B (ACCEL_XOUT_H) & 0x3C (ACCEL_XOUT_L)
@@ -218,9 +215,7 @@ void readTempreture() {
 }
 
 void readGyro() {
-
   while (Wire.available() < 6);
-
   // read the gyro values , note that the value is divided into two adjacent register
   // each one has the first half bits so we should concatenate them by shifting and oring
   GyX = Wire.read() << 8 | Wire.read(); // 0x43 (GYRO_XOUT_H) & 0x44 (GYRO_XOUT_L)
@@ -228,52 +223,46 @@ void readGyro() {
   GyZ = Wire.read() << 8 | Wire.read(); // 0x47 (GYRO_ZOUT_H) & 0x48 (GYRO_ZOUT_L)
 }
 
-int index = 0;
+
 void printOnLcd()
 {
-  lcd.clear();
-    
   lcd.setCursor(0,0);
   lcd.print("Step=");
   lcd.print(max(steps, 0));
-   
-  lcd.print(",D=");
+
+  lcd.setCursor(8,0);
+  lcd.print("D=");
   lcd.print(getDistance());
   
   lcd.setCursor(0,1);
   lcd.print("V=");
   lcd.print(getVelocity());
   //lcd.print("m/s");
-  
-  lcd.print(",C=");
+
+  lcd.setCursor(8,1);
+  lcd.print("C=");
   lcd.print(getCalories());
-
-  //delay(100);
-
 }
 
 
 // distance by meter
 float getDistance(){
-  return (max(steps, 0) * 74.0) / 100.0;
+  return (max(steps, 0) * cm_per_step) / 100.0;
 }
 
 //velocity by m/s
 float getVelocity(){
-  //float v = last_v + ((millis() - startTime) / 1000.0) * average_acc;
-  //Serial.println(v);
-  //last_v = v;
-  //startTime = millis();
-  //return v;
-  
-  //return (getDistance() / ((millis() - startTime) / 1000.0));
-
   return vel;
 }
 
 //calaroies by (C/kg/h)
 float getCalories(){
-  total_calories = 4.5 * getVelocity();
+  // rate of burn calroies measured by calories/minutes
+  float rate = (0.035 * weight) + (((vel * vel) / height) * 0.029 * weight);
+  if(last_steps != steps){
+    total_calories += rate * (time_interval / 60) ;
+    last_steps = steps;
+  }
   return total_calories;
 }
 
