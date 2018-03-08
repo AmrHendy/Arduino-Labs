@@ -14,7 +14,7 @@ long AcX, AcY, AcZ, Tmp, GyX, GyY, GyZ;
 
 
 //calibration to remove the error value at first 
-long x_, y_, z_;
+long xg_, yg_, zg_, xa_, ya_, za_;
 bool first_time = true;
 
 
@@ -22,6 +22,20 @@ bool first_time = true;
 int angles[2] = {0,0};
 Servo servos[2];  // create servo object to control a servo
 //Servo servo2;  // create servo object to control a servo
+
+
+float gyro_sensitivity = 0.681318;
+float acc_sensitivity = 306.9;
+
+
+float gyro_rate[3], acc_rate[3]; 
+
+
+
+long prev_time = 0, curr_time;
+
+
+float alpha = 0.98;
 
 void setup() {
   Wire.begin();
@@ -32,7 +46,23 @@ void setup() {
  servos[1].attach(servo_pin2);
  servos[0].write(angles[0]);
  servos[1].write(angles[1]);
+
+  read_values();
+  
+  xa_ = AcX;
+  ya_ = AcY;
+  za_ = AcZ;
+  xg_ = GyX;
+  yg_ = GyY;
+  zg_ = GyZ;
+/*
+  Serial.println(xg_);
+  Serial.println(yg_);
+  Serial.println(zg_);
+  */
+  //delay(1000000);
 }
+
 
 
 void setupMPU() {
@@ -49,26 +79,71 @@ void setupMPU() {
 
 
 void loop() {
-  Wire.beginTransmission(MPU_addr);
-  Wire.write(0x3B);  // starting with register 0x3B (ACCEL_XOUT_H)
-  Wire.endTransmission(false);
-  Wire.requestFrom(MPU_addr, 14, true); // request a total of 14 registers
 
   read_values();
+  curr_time = millis();
+  gyro_rate[0] = (GyX -  xg_) / gyro_sensitivity;
+  gyro_rate[1] = (GyY -  yg_) / gyro_sensitivity;
+  gyro_rate[2] = (GyZ -  zg_) / gyro_sensitivity;
 
-  if(first_time){
-    x_ = AcX;
-    y_ = AcY;
-    z_ = AcZ;
-    first_time = false;
+  Serial.print("rate\n");
+  Serial.println(gyro_rate[0]);
+  Serial.println(gyro_rate[1]);
+  Serial.println(gyro_rate[2]);
+  Serial.println("================");
+
+  acc_rate[0] = (AcX -  xa_) / acc_sensitivity;
+  acc_rate[1] = (AcY -  ya_) / acc_sensitivity;
+  acc_rate[2] = (AcZ -  za_) / acc_sensitivity;
+  
+  int dir;
+  if(gyro_rate[0] > gyro_rate[1] && abs(GyX-xg_) > 100 )dir = 0;
+  else if(abs(GyY-yg_)  > 100) dir = 1;
+  else dir = -1;
+
+  Serial.print("dir = ");
+  Serial.println(dir);
+
+  long dtt = curr_time - prev_time;
+
+  
+  Serial.print("dtt = ");
+  Serial.println(dtt);
+    
+  float diff_angle_gyro = gyro_rate[dir] * dtt / 1000.0;
+
+  
+  Serial.print("diff_angle_gyro = ");
+  Serial.println(diff_angle_gyro);
+
+  //delay(1000);
+  
+  float diff_angle_acc = 0;
+  float pitch = (atan2(AcY, AcZ) + PI) * RAD_TO_DEG;
+  float roll = (atan2(AcX, AcZ) + PI) * RAD_TO_DEG;
+  // pitch ub and down
+  if(dir == 0){
+    diff_angle_acc = pitch;
+  }
+  else{
+    diff_angle_gyro = roll;
   }
   
-  rotate_servos(2000,30,0);
+  rotate_servos(diff_angle_gyro, diff_angle_acc, gyro_rate[dir],dir);
+  prev_time = curr_time;
 }
 
 
-void rotate_servos(long velo, int val, int dir){
+void rotate_servos(float diff_angle_gyro, float diff_angle_acc, int velo, int dir){
+  if(dir == -1 ){
+    return;
+  }
+  Serial.print("Velo");
+  Serial.println(velo);
+  
   servos[1 - dir].write(angles[1 - dir]);
+  
+  long val = alpha * (angles[dir] + diff_angle_gyro) + (1 - alpha) * diff_angle_acc - angles[dir];
   long time1;
   time1 = ((val * 1.0) / velo) * 1000;
   if(val == 0){
@@ -80,7 +155,7 @@ void rotate_servos(long velo, int val, int dir){
   for(int i=0;i<val;i++){
     servos[dir].write((angles[dir] + 1) % 181);
     angles[dir] = (angles[dir] + 1) % 181;
-    delay(delayy);
+    delay(10);
   }
 }
 
@@ -90,6 +165,11 @@ void calc_values() {
 
 
 void read_values(){
+  Wire.beginTransmission(MPU_addr);
+  Wire.write(0x3B);  // starting with register 0x3B (ACCEL_XOUT_H)
+  Wire.endTransmission(false);
+  Wire.requestFrom(MPU_addr, 14, true); // request a total of 14 registers
+
   readAcceleration();
   readTempreture();
   readGyro();
@@ -130,5 +210,5 @@ void readGyro() {
   Serial.print(GyX);Serial.print(",");
   Serial.print(GyY);Serial.print(",");
   Serial.println(GyZ);
-  Serial.println("===================================");  
+  //Serial.println("===================================");  
 }
