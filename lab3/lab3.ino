@@ -13,7 +13,7 @@
 LSM303 compass; //lsm303 sensor
 Adafruit_PCD8544 display = Adafruit_PCD8544(7, 6, 5, 4, 3); //nokia display
 
-int r = 24;  // radius of compass rose
+int r = 20;  // radius of compass rose
 int x= 58;  // x-origin
 int y = 24; // y-origin
 float angle;  
@@ -48,6 +48,7 @@ void calculateCompass(){
   compass.read(); 
   //calculate heading value = Angle between North and -ve axis on the LSM chip.
   angle = compass.heading();
+  
 }
 
 void drawCompass(){
@@ -57,12 +58,14 @@ void drawCompass(){
   display.setTextSize(2);
   display.setTextColor(BLACK);
   display.setCursor(0,0);
-  display.println((int)angle);
-  
+
+  if((int)angle - 270 < 0) display.println((int)angle - 270 + 360);
+  else display.println((int)angle - 270);
+   
   drawDirections();
 
   /* draw the line which points to the North. */
-  display.drawLine(x, y, x + r * sin(angle / 180.0 * PI), y - r * cos(angle / 180.0 * PI), BLACK);
+  display.drawLine(x, y, x + r * sin((270 - angle) / 180.0 * PI), y - r * cos((270 - angle) / 180.0 * PI), BLACK);
   display.display();
 }
 
@@ -87,7 +90,11 @@ void drawDirections(){
   display.setCursor(x - r, y - CHAR_HEIGHT / 2);
   display.println("W");
 
-  /*draw the line. */
-  display.setCursor(x + r * sin(ALEX_QIBLA / 180.0 * PI) - CHAR_WIDTH / 2, y - r * cos(ALEX_QIBLA / 180.0 * PI) - CHAR_HEIGHT / 2);
+  /*if we want to make qibla fixed. */
+  //display.setCursor(x + r * sin(ALEX_QIBLA / 180.0 * PI) - CHAR_WIDTH / 2, y - r * cos(ALEX_QIBLA / 180.0 * PI) - CHAR_HEIGHT / 2);
+  
+  /*if we want to make qibla move with us like the line. */
+  display.setCursor(x + r * sin((270 - angle + ALEX_QIBLA) / 180.0 * PI) - CHAR_WIDTH / 2, y - r * cos((270 - angle + ALEX_QIBLA) / 180.0 * PI) - CHAR_HEIGHT / 2);
+  
   display.println("Q");
 }
