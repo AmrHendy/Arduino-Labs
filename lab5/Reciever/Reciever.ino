@@ -5,6 +5,7 @@ int msg[1];
 RF24 radio(9,53);
 const uint64_t pipe = 0xE8E8F0F0E1LL;
 int led_pin = 3;
+int led_state = LOW;
 
 void setup(void){
   Serial.begin(9600);
@@ -22,10 +23,17 @@ void loop(void){
       Serial.println(msg[0]);
       if (msg[0] == 111){
         delay(10);
-        digitalWrite(led_pin, HIGH);
+        if(led_state == HIGH){
+          digitalWrite(led_pin, LOW);
+          led_state = LOW;
+        }
+        else{
+          digitalWrite(led_pin, HIGH);
+          led_state = HIGH;
+        }
       }
       else {
-        digitalWrite(led_pin, LOW);
+        // do not change the led state
       }
       delay(10);
     }

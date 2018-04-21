@@ -5,7 +5,7 @@
 int msg[1];
 RF24 radio(9,53);
 const uint64_t pipe = 0xE8E8F0F0E1LL;
-int switch_pin = 7;
+int push_button_pin = 7;
 
 void setup(void){
   Serial.begin(9600);
@@ -14,7 +14,7 @@ void setup(void){
 }
 
 void loop(void){
-  if (digitalRead(switch_pin) == HIGH){
+  if (digitalRead(push_button_pin) == HIGH){
     msg[0] = 111;
     radio.write(msg, 1);
   }
