@@ -1,44 +1,35 @@
 #include <SPI.h>
 #include <nRF24L01.h>
 #include <RF24.h>
-int msg[1];
-RF24 radio(9,53);
-const uint64_t pipe = 0xE8E8F0F0E1LL;
-int led_pin = 3;
-int led_state = LOW;
+#define led 3
+RF24 radio(9, 53); // CE, CSN
+const byte addresses[][6] = {"00001", "00002"};
+boolean buttonState = 0;
+int prev_button_state = LOW;
+int prev_led_state = LOW;
 
-void setup(void){
+void setup() {
   Serial.begin(9600);
+  pinMode(led, OUTPUT);
   radio.begin();
-  radio.openReadingPipe(1,pipe);
-  radio.startListening();
-  pinMode(led_pin, OUTPUT);
+  radio.openReadingPipe(1, addresses[0]);
+  radio.setPALevel(RF24_PA_MIN);
 }
-
-void loop(void){
-  if (radio.available()){
-    bool done = false;
-    while (!done){
-      done = radio.read(msg, 1);
-      Serial.println(msg[0]);
-      if (msg[0] == 111){
-        delay(10);
-        if(led_state == HIGH){
-          digitalWrite(led_pin, LOW);
-          led_state = LOW;
-        }
-        else{
-          digitalWrite(led_pin, HIGH);
-          led_state = HIGH;
-        }
-      }
-      else {
-        // do not change the led state
-      }
-      delay(10);
+void loop() {
+  delay(5);
+  radio.startListening();
+  while (!radio.available());
+  radio.read(&buttonState, sizeof(buttonState));
+  Serial.println(buttonState);
+  if (buttonState == HIGH && prev_button_state == LOW) {
+    if(prev_led_state == HIGH){
+      prev_led_state = LOW;
+      digitalWrite(led, LOW);
+    }
+    else{
+      prev_led_state = HIGH;
+      digitalWrite(led, HIGH);
     }
   }
-  else{
-    Serial.println("No radio available");
-  }
+  prev_button_state = buttonState;
 }
